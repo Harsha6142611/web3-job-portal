@@ -79,8 +79,8 @@ const Header = () => {
         toast.error('Connection request already pending. Please check MetaMask.')
       } else if (error.code === -32603) {
         toast.error('MetaMask internal error. Please try refreshing the page.')
-      } else if (error.message.includes('already registered')) {
-        toast.error('This wallet is already connected to another account')
+      } else if (error.message.includes('already registered') || error.message.includes('already connected')) {
+        toast.error('This wallet is already connected to another account. Please disconnect it from the other account first or use a different wallet.')
       } else {
         toast.error(error.message || 'Failed to connect wallet. Please try again.')
       }

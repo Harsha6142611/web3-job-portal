@@ -41,6 +41,21 @@ app.get('/health', (req, res) => {
   });
 });
 
+// TEMPORARY: Reset database (REMOVE IN PRODUCTION!)
+app.post('/reset-database-danger', async (req, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(403).json({ error: 'Not allowed in production' });
+  }
+  
+  try {
+    await sequelize.drop();
+    await sequelize.sync({ force: true });
+    res.json({ message: 'Database reset successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);

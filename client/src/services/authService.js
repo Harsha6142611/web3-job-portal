@@ -1,19 +1,48 @@
 import api from './api'
 
+const handleApiError = (error) => {
+  console.error('API Error:', error)
+  
+  if (error.structuredError) {
+    // Use the structured error from the interceptor
+    throw new Error(error.structuredError.message)
+  } else if (error.response?.data?.message) {
+    throw new Error(error.response.data.message)
+  } else if (error.response?.data?.error) {
+    throw new Error(error.response.data.error)
+  } else if (error.message) {
+    throw new Error(error.message)
+  } else {
+    throw new Error('An unexpected error occurred')
+  }
+}
+
 export const authService = {
   login: async (email, password) => {
-    const response = await api.post('/auth/login', { email, password })
-    return response.data
+    try {
+      const response = await api.post('/auth/login', { email, password })
+      return response.data
+    } catch (error) {
+      handleApiError(error)
+    }
   },
 
   register: async (userData) => {
-    const response = await api.post('/auth/register', userData)
-    return response.data
+    try {
+      const response = await api.post('/auth/register', userData)
+      return response.data
+    } catch (error) {
+      handleApiError(error)
+    }
   },
 
   getProfile: async () => {
-    const response = await api.get('/auth/me')
-    return response.data
+    try {
+      const response = await api.get('/auth/me')
+      return response.data
+    } catch (error) {
+      handleApiError(error)
+    }
   },
 
   updateProfile: async (profileData) => {
@@ -26,21 +55,27 @@ export const authService = {
         // Handle validation errors
         const errorMessages = error.response.data.details.map(detail => detail.message)
         throw new Error(errorMessages.join(', '))
-      } else if (error.response?.data?.error) {
-        throw new Error(error.response.data.error)
       } else {
-        throw new Error('Failed to update profile')
+        handleApiError(error)
       }
     }
   },
 
   connectWallet: async (walletAddress) => {
-    const response = await api.post('/auth/connect-wallet', { walletAddress })
-    return response.data
+    try {
+      const response = await api.post('/auth/connect-wallet', { walletAddress })
+      return response.data
+    } catch (error) {
+      handleApiError(error)
+    }
   },
 
   logout: async () => {
-    const response = await api.post('/auth/logout')
-    return response.data
+    try {
+      const response = await api.post('/auth/logout')
+      return response.data
+    } catch (error) {
+      handleApiError(error)
+    }
   }
 } 

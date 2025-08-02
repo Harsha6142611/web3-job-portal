@@ -35,7 +35,8 @@ router.post('/register', async (req, res) => {
     const { error, value } = registerSchema.validate(req.body);
     if (error) {
       return res.status(400).json({
-        error: 'Validation failed',
+        error: 'VALIDATION_ERROR',
+        message: 'Validation failed',
         details: error.details
       });
     }
@@ -45,8 +46,9 @@ router.post('/register', async (req, res) => {
     // Check if user already exists
     const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
-      return res.status(400).json({
-        error: 'User with this email already exists'
+      return res.status(409).json({
+        error: 'EMAIL_ALREADY_EXISTS',
+        message: 'An account with this email address already exists. Please use a different email or try logging in.'
       });
     }
 
@@ -54,8 +56,9 @@ router.post('/register', async (req, res) => {
     if (walletAddress) {
       const existingWallet = await User.findOne({ where: { walletAddress } });
       if (existingWallet) {
-        return res.status(400).json({
-          error: 'Wallet address is already registered'
+        return res.status(409).json({
+          error: 'WALLET_ALREADY_REGISTERED',
+          message: 'This wallet address is already connected to another account. Please use a different wallet or disconnect it from the other account first.'
         });
       }
     }
@@ -82,8 +85,24 @@ router.post('/register', async (req, res) => {
       token
     });
   } catch (error) {
+    console.error('Registration error:', error);
+    if (error.name === 'SequelizeUniqueConstraintError') {
+      if (error.fields.email) {
+        return res.status(409).json({
+          error: 'EMAIL_ALREADY_EXISTS',
+          message: 'An account with this email address already exists. Please use a different email or try logging in.'
+        });
+      }
+      if (error.fields.walletAddress) {
+        return res.status(409).json({
+          error: 'WALLET_ALREADY_REGISTERED',
+          message: 'This wallet address is already connected to another account. Please use a different wallet or disconnect it from the other account first.'
+        });
+      }
+    }
     res.status(500).json({
-      error: 'Failed to register user'
+      error: 'SERVER_ERROR',
+      message: 'An unexpected error occurred during registration. Please try again.'
     });
   }
 });
@@ -94,7 +113,8 @@ router.post('/login', async (req, res) => {
     const { error, value } = loginSchema.validate(req.body);
     if (error) {
       return res.status(400).json({
-        error: 'Validation failed',
+        error: 'VALIDATION_ERROR',
+        message: 'Validation failed',
         details: error.details
       });
     }
@@ -105,7 +125,16 @@ router.post('/login', async (req, res) => {
     const user = await User.findOne({ where: { email } });
     if (!user) {
       return res.status(401).json({
-        error: 'Invalid email or password'
+        error: 'EMAIL_NOT_FOUND',
+        message: 'No account found with this email address. Please check your email or sign up for a new account.'
+      });
+    }
+
+    // Check if user account is active
+    if (!user.isActive) {
+      return res.status(401).json({
+        error: 'ACCOUNT_DEACTIVATED',
+        message: 'Your account has been deactivated. Please contact support for assistance.'
       });
     }
 
@@ -113,7 +142,8 @@ router.post('/login', async (req, res) => {
     const isPasswordValid = await user.comparePassword(password);
     if (!isPasswordValid) {
       return res.status(401).json({
-        error: 'Invalid email or password'
+        error: 'INVALID_PASSWORD',
+        message: 'Incorrect password. Please check your password and try again.'
       });
     }
 
@@ -133,8 +163,10 @@ router.post('/login', async (req, res) => {
       token
     });
   } catch (error) {
+    console.error('Login error:', error);
     res.status(500).json({
-      error: 'Failed to login'
+      error: 'SERVER_ERROR',
+      message: 'An unexpected error occurred during login. Please try again.'
     });
   }
 });
@@ -158,7 +190,8 @@ router.put('/profile', auth, async (req, res) => {
     const { error, value } = updateProfileSchema.validate(req.body);
     if (error) {
       return res.status(400).json({
-        error: 'Validation failed',
+        error: 'VALIDATION_ERROR',
+        message: 'Validation failed',
         details: error.details
       });
     }
@@ -172,8 +205,9 @@ router.put('/profile', auth, async (req, res) => {
         }
       });
       if (existingWallet) {
-        return res.status(400).json({
-          error: 'Wallet address is already registered by another user'
+        return res.status(409).json({
+          error: 'WALLET_ALREADY_CONNECTED',
+          message: 'This wallet address is already connected to another user account. Please use a different wallet address.'
         });
       }
     }
@@ -187,9 +221,23 @@ router.put('/profile', auth, async (req, res) => {
     });
   } catch (error) {
     console.error('Profile update error:', error);
+    if (error.name === 'SequelizeUniqueConstraintError') {
+      if (error.fields.email) {
+        return res.status(409).json({
+          error: 'EMAIL_ALREADY_EXISTS',
+          message: 'This email address is already in use by another account. Please use a different email address.'
+        });
+      }
+      if (error.fields.walletAddress) {
+        return res.status(409).json({
+          error: 'WALLET_ALREADY_CONNECTED',
+          message: 'This wallet address is already connected to another user account. Please use a different wallet address.'
+        });
+      }
+    }
     res.status(500).json({
-      error: 'Failed to update profile',
-      details: error.message
+      error: 'SERVER_ERROR',
+      message: 'An unexpected error occurred while updating your profile. Please try again.'
     });
   }
 });
@@ -201,11 +249,20 @@ router.post('/connect-wallet', auth, async (req, res) => {
 
     if (!walletAddress || !/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
       return res.status(400).json({
-        error: 'Invalid wallet address'
+        error: 'INVALID_WALLET_ADDRESS',
+        message: 'Please provide a valid MetaMask wallet address (42 characters starting with 0x).'
       });
     }
 
-    // Check if wallet is already in use
+    // Check if user already has this wallet connected
+    if (req.user.walletAddress === walletAddress) {
+      return res.status(200).json({
+        message: 'Wallet is already connected to your account',
+        user: req.user.toJSON()
+      });
+    }
+
+    // Check if wallet is already in use by another user
     const existingWallet = await User.findOne({ 
       where: { 
         walletAddress,
@@ -214,9 +271,20 @@ router.post('/connect-wallet', auth, async (req, res) => {
     });
     
     if (existingWallet) {
-      return res.status(400).json({
-        error: 'Wallet address is already registered by another user'
+      return res.status(409).json({
+        error: 'WALLET_ALREADY_CONNECTED',
+        message: 'This MetaMask wallet is already connected to another user account. Please disconnect it from the other account first or use a different wallet.',
+        details: {
+          walletAddress: walletAddress,
+          connectedToUser: existingWallet.email ? existingWallet.email.replace(/(.{2}).*(@.*)/, '$1***$2') : 'another account'
+        }
       });
+    }
+
+    // If user already has a different wallet, ask for confirmation
+    if (req.user.walletAddress && req.user.walletAddress !== walletAddress) {
+      // For now, we'll update it directly, but you could add a confirmation step
+      console.log(`User ${req.user.email} changing wallet from ${req.user.walletAddress} to ${walletAddress}`);
     }
 
     await req.user.update({ walletAddress });
@@ -226,8 +294,16 @@ router.post('/connect-wallet', auth, async (req, res) => {
       user: req.user.toJSON()
     });
   } catch (error) {
+    console.error('Wallet connection error:', error);
+    if (error.name === 'SequelizeUniqueConstraintError') {
+      return res.status(409).json({
+        error: 'WALLET_ALREADY_CONNECTED',
+        message: 'This MetaMask wallet is already connected to another user account. Please disconnect it from the other account first or use a different wallet.'
+      });
+    }
     res.status(500).json({
-      error: 'Failed to connect wallet'
+      error: 'SERVER_ERROR',
+      message: 'An unexpected error occurred while connecting your wallet. Please try again.'
     });
   }
 });

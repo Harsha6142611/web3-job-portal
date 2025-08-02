@@ -31,6 +31,25 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       useAuthStore.getState().logout()
     }
+    
+    // Transform error to include structured error information
+    if (error.response?.data) {
+      const { error: errorCode, message, details } = error.response.data
+      error.structuredError = {
+        code: errorCode,
+        message: message || error.response.data.error || 'An error occurred',
+        details: details,
+        status: error.response.status
+      }
+    } else {
+      error.structuredError = {
+        code: 'NETWORK_ERROR',
+        message: 'Network error. Please check your connection and try again.',
+        details: null,
+        status: null
+      }
+    }
+    
     return Promise.reject(error)
   }
 )
