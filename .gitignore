@@ -174,11 +174,13 @@ uploads/
 *.docx
 resume_files/
 
-# AI Model Files
-models/
+# AI Model Files (ML/AI model files, NOT database models)
+# models/ - COMMENTED OUT: This was blocking database models
 *.model
 *.pkl
 *.h5
+ai_models/
+ml_models/
 
 # Test files
 test-results/
